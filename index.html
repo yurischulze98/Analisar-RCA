@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Consulta Rápida - Importar Planilha / RCA</title>
+  <title>Consulta Rápida - RCA com Supabase</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #f4f7fb;
@@ -96,6 +97,45 @@
       background: #fff;
     }
 
+    .btn:disabled {
+      opacity: 0.58;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .auth-box {
+      margin: 0 0 16px;
+      padding: 14px;
+      border: 1px solid rgba(147,197,253,0.9);
+      background: rgba(255,255,255,0.84);
+      border-radius: 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(16, 24, 40, 0.05);
+    }
+
+    .auth-info strong { display: block; margin-bottom: 4px; }
+    .auth-info span { color: var(--muted); font-size: 14px; line-height: 1.4; }
+
+    .auth-form {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .auth-form input {
+      min-width: 210px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      outline: none;
+    }
+
     .cards {
       display: grid;
       grid-template-columns: repeat(5, minmax(150px, 1fr));
@@ -171,7 +211,7 @@
       background: #f9fafb;
     }
 
-    .search-wrap input:focus, select:focus {
+    .search-wrap input:focus, select:focus, .auth-form input:focus {
       border-color: #93c5fd;
       box-shadow: 0 0 0 4px #dbeafe;
       background: #fff;
@@ -197,7 +237,7 @@
 
     .table-wrap {
       overflow: auto;
-      max-height: calc(100vh - 330px);
+      max-height: calc(100vh - 380px);
     }
 
     table {
@@ -256,6 +296,8 @@
     .badge.nao { background: var(--danger-soft); color: var(--danger); }
     .badge.numero { background: var(--brand-soft); color: var(--brand); }
     .badge.vazio { background: #f1f5f9; color: #64748b; }
+    .badge.online { background: var(--ok-soft); color: var(--ok); }
+    .badge.offline { background: var(--warn-soft); color: var(--warn); }
 
     .obs {
       color: #344054;
@@ -448,7 +490,9 @@
       .cards { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
       .filters { grid-template-columns: 1fr; position: static; }
       .table-wrap { max-height: none; }
-      .import-box { align-items: flex-start; flex-direction: column; }
+      .import-box, .auth-box { align-items: flex-start; grid-template-columns: 1fr; flex-direction: column; }
+      .auth-form { justify-content: flex-start; }
+      .auth-form input { min-width: 100%; }
       .form-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: auto; }
     }
@@ -465,24 +509,38 @@
     <header>
       <div>
         <h1>Consulta rápida de recorrências / RCA</h1>
-        <p class="subtitle">Importe uma planilha e consulte rapidamente por título, número, RCA ou observação.</p>
+        <p class="subtitle">Importe uma planilha, salve no Supabase e consulte rapidamente por título, número, RCA ou observação.</p>
       </div>
       <div class="actions">
         <input id="arquivoPlanilha" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden onchange="importarArquivo(event)" />
-        <button class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Importar planilha</button>
+        <button id="btnImportarTopo" class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Importar planilha</button>
         <button class="btn" onclick="limparFiltros()">Limpar filtros</button>
-        <button class="btn" onclick="resetarAlteracoes()">Resetar alterações</button>
+        <button class="btn" onclick="carregarDadosSupabase()">Recarregar banco</button>
         <button class="btn" onclick="exportarCSV()">Exportar resultado</button>
         <button class="btn danger" onclick="limparBase()">Limpar base</button>
       </div>
     </header>
+
+    <section class="auth-box">
+      <div class="auth-info">
+        <strong>Conexão Supabase</strong>
+        <span id="authStatus">Verificando configuração...</span>
+      </div>
+      <div class="auth-form" id="authForm">
+        <input id="authEmail" type="email" placeholder="E-mail" autocomplete="email" />
+        <input id="authPassword" type="password" placeholder="Senha" autocomplete="current-password" />
+        <button class="btn primary" onclick="entrarSupabase()">Entrar</button>
+        <button class="btn" onclick="criarContaSupabase()">Criar conta</button>
+        <button class="btn danger" onclick="sairSupabase()">Sair</button>
+      </div>
+    </section>
 
     <section class="import-box">
       <div>
         <strong>Formato esperado da planilha</strong>
         <span>Use as colunas: <b>Titulo</b>, <b>Qtd</b>, <b>Tem RCA?</b>, <b>N°</b> e <b>Observação</b>. Também aceito nomes parecidos, como “Título”, “Quantidade”, “Número” e “Obs”.</span>
       </div>
-      <button class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Selecionar arquivo</button>
+      <button id="btnImportarBox" class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Selecionar arquivo</button>
     </section>
 
     <section class="cards" aria-label="Resumo">
@@ -535,7 +593,7 @@
       </div>
       <div class="footer-status">
         <span id="resultadoInfo">0 resultado(s)</span>
-        <span>As alterações ficam salvas neste navegador até você limpar a base.</span>
+        <span>Os dados agora são lidos e salvos no Supabase.</span>
       </div>
     </main>
   </div>
@@ -585,29 +643,39 @@
   <div class="toast" id="toast">Copiado!</div>
 
   <script>
-    const STORAGE_DADOS = 'consulta_recorrencias_rca_dados_importados_v2';
-    const STORAGE_ORIGINAL = 'consulta_recorrencias_rca_base_original_v2';
+    /*
+      CONFIGURAÇÃO OBRIGATÓRIA
+      1) No Supabase, vá em Project Settings > API.
+      2) Cole abaixo a Project URL e a anon/public key.
+      3) Crie a tabela rca_registros usando o SQL que deixei junto da resposta.
+    */
+    const SUPABASE_URL = 'https://nydzctvapuobsfbeguix.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_imw3lqp4bVnv2X2jUOLfzQ_KDzW5vV1';
+    const TABELA_RCA = 'rca_registros';
 
-    let dados = carregarStorage(STORAGE_DADOS, []);
-    let baseOriginal = carregarStorage(STORAGE_ORIGINAL, []);
+    const supabaseConfigurado =
+      typeof window.supabase !== 'undefined' &&
+      SUPABASE_URL.startsWith('https://') &&
+      SUPABASE_ANON_KEY.length > 40 &&
+      !SUPABASE_URL.includes('COLE_AQUI') &&
+      !SUPABASE_ANON_KEY.includes('COLE_AQUI');
+
+    const supabaseClient = supabaseConfigurado
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        })
+      : null;
+
+    let dados = [];
+    let baseOriginal = [];
     let editandoId = null;
-    let linhasAtuais = [...dados];
-
-    function carregarStorage(chave, fallback) {
-      try {
-        const salvo = localStorage.getItem(chave);
-        if (!salvo) return fallback;
-        const parsed = JSON.parse(salvo);
-        return Array.isArray(parsed) ? parsed : fallback;
-      } catch (e) {
-        return fallback;
-      }
-    }
-
-    function salvarBase() {
-      localStorage.setItem(STORAGE_DADOS, JSON.stringify(dados));
-      localStorage.setItem(STORAGE_ORIGINAL, JSON.stringify(baseOriginal));
-    }
+    let linhasAtuais = [];
+    let usuarioAtual = null;
+    let carregando = false;
 
     function normalizar(texto) {
       return String(texto || '')
@@ -645,6 +713,10 @@
 
     function escapeRegex(texto) {
       return String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function jsString(valor) {
+      return JSON.stringify(String(valor));
     }
 
     function destacar(texto, termo) {
@@ -748,7 +820,7 @@
         observacao: ['observação', 'observacao', 'obs', 'comentario', 'comentário', 'detalhe', 'detalhes']
       };
 
-      return objetos.map((obj, index) => {
+      return objetos.map((obj) => {
         const primeiraColuna = Object.keys(obj)[0] ? obj[Object.keys(obj)[0]] : '';
         const numero = String(buscarCampo(obj, aliases.numero) || '-').trim() || '-';
         const titulo = fixMojibake(String(buscarCampo(obj, aliases.titulo) || primeiraColuna || '').trim());
@@ -757,7 +829,6 @@
         const temRca = parseRca(buscarCampo(obj, aliases.temRca), numero);
 
         return {
-          id: index + 1,
           titulo,
           qtd,
           temRca,
@@ -767,10 +838,176 @@
       }).filter(row => row.titulo || row.qtd || row.numero !== '-' || row.observacao);
     }
 
+    function exigirSupabase() {
+      if (!supabaseConfigurado || !supabaseClient) {
+        mostrarToast('Configure a URL e a chave pública do Supabase no HTML.');
+        return false;
+      }
+      return true;
+    }
+
+    function exigirLogin() {
+      if (!exigirSupabase()) return false;
+      if (!usuarioAtual) {
+        mostrarToast('Faça login para acessar o banco.');
+        return false;
+      }
+      return true;
+    }
+
+    function atualizarAuthUI() {
+      const status = document.getElementById('authStatus');
+      const btnTopo = document.getElementById('btnImportarTopo');
+      const btnBox = document.getElementById('btnImportarBox');
+
+      if (!supabaseConfigurado) {
+        status.innerHTML = '<span class="badge offline">Não configurado</span> Cole a URL e a anon/public key do Supabase dentro do HTML.';
+        btnTopo.disabled = true;
+        btnBox.disabled = true;
+        return;
+      }
+
+      if (usuarioAtual) {
+        status.innerHTML = `<span class="badge online">Conectado</span> ${escaparHTML(usuarioAtual.email || 'Usuário autenticado')}`;
+        btnTopo.disabled = false;
+        btnBox.disabled = false;
+      } else {
+        status.innerHTML = '<span class="badge offline">Desconectado</span> Entre com e-mail e senha para carregar/salvar os registros.';
+        btnTopo.disabled = true;
+        btnBox.disabled = true;
+      }
+    }
+
+    async function inicializarApp() {
+      renderizar();
+      atualizarAuthUI();
+
+      if (!supabaseConfigurado) return;
+
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error) {
+        console.error(error);
+        mostrarToast('Não consegui verificar a sessão.');
+        return;
+      }
+
+      usuarioAtual = data.session?.user || null;
+      atualizarAuthUI();
+
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        usuarioAtual = session?.user || null;
+        atualizarAuthUI();
+        if (usuarioAtual) {
+          carregarDadosSupabase();
+        } else {
+          dados = [];
+          baseOriginal = [];
+          linhasAtuais = [];
+          renderizar();
+        }
+      });
+
+      if (usuarioAtual) await carregarDadosSupabase();
+    }
+
+    async function entrarSupabase() {
+      if (!exigirSupabase()) return;
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+
+      if (!email || !password) {
+        mostrarToast('Informe e-mail e senha.');
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error(error);
+        mostrarToast('Erro ao entrar. Verifique e-mail/senha.');
+        return;
+      }
+
+      document.getElementById('authPassword').value = '';
+      mostrarToast('Login realizado!');
+    }
+
+    async function criarContaSupabase() {
+      if (!exigirSupabase()) return;
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+
+      if (!email || !password) {
+        mostrarToast('Informe e-mail e senha.');
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) {
+        console.error(error);
+        mostrarToast('Erro ao criar conta.');
+        return;
+      }
+
+      document.getElementById('authPassword').value = '';
+      mostrarToast('Conta criada. Se pedir confirmação, verifique o e-mail.');
+    }
+
+    async function sairSupabase() {
+      if (!exigirSupabase()) return;
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        console.error(error);
+        mostrarToast('Erro ao sair.');
+        return;
+      }
+      mostrarToast('Sessão encerrada.');
+    }
+
+    function linhaDoSupabase(row) {
+      return {
+        id: row.id,
+        titulo: row.titulo || '',
+        qtd: Number(row.qtd || 0),
+        temRca: row.tem_rca || 'Não',
+        numero: row.numero || '-',
+        observacao: row.observacao || ''
+      };
+    }
+
+    async function carregarDadosSupabase() {
+      if (!exigirLogin()) {
+        renderizar();
+        return;
+      }
+
+      carregando = true;
+      document.getElementById('resultadoInfo').textContent = 'Carregando dados do Supabase...';
+
+      const { data, error } = await supabaseClient
+        .from(TABELA_RCA)
+        .select('id,titulo,qtd,tem_rca,numero,observacao,created_at,updated_at')
+        .order('qtd', { ascending: false });
+
+      carregando = false;
+
+      if (error) {
+        console.error(error);
+        alert('Erro ao carregar dados do Supabase. Confira se a tabela rca_registros existe e se as policies estão configuradas.');
+        return;
+      }
+
+      dados = (data || []).map(linhaDoSupabase);
+      baseOriginal = JSON.parse(JSON.stringify(dados));
+      linhasAtuais = [...dados];
+      renderizar();
+      mostrarToast('Banco carregado!');
+    }
+
     async function importarArquivo(event) {
       const file = event.target.files[0];
       event.target.value = '';
       if (!file) return;
+      if (!exigirLogin()) return;
 
       const ext = file.name.split('.').pop().toLowerCase();
 
@@ -799,11 +1036,40 @@
           return;
         }
 
-        dados = importados;
-        baseOriginal = JSON.parse(JSON.stringify(importados));
-        salvarBase();
+        const confirmar = confirm(`Essa importação vai substituir a base atual do Supabase por ${importados.length} registro(s). Deseja continuar?`);
+        if (!confirmar) return;
+
+        const { error: deleteError } = await supabaseClient
+          .from(TABELA_RCA)
+          .delete()
+          .not('id', 'is', null);
+
+        if (deleteError) {
+          console.error(deleteError);
+          alert('Erro ao limpar a base antiga no Supabase.');
+          return;
+        }
+
+        const payload = importados.map(row => ({
+          titulo: row.titulo,
+          qtd: row.qtd,
+          tem_rca: row.temRca,
+          numero: row.numero,
+          observacao: row.observacao
+        }));
+
+        const { error: insertError } = await supabaseClient
+          .from(TABELA_RCA)
+          .insert(payload);
+
+        if (insertError) {
+          console.error(insertError);
+          alert('Erro ao importar dados para o Supabase.');
+          return;
+        }
+
         limparFiltros(false);
-        renderizar();
+        await carregarDadosSupabase();
         mostrarToast(`${importados.length} registro(s) importado(s)!`);
       } catch (erro) {
         console.error(erro);
@@ -845,12 +1111,57 @@
       linhasAtuais = obterFiltrados();
       const tbody = document.getElementById('tbody');
 
+      if (!supabaseConfigurado) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <strong>Supabase ainda não configurado</strong>
+                Abra este arquivo e cole a Project URL e a anon/public key nas constantes SUPABASE_URL e SUPABASE_ANON_KEY.
+              </div>
+            </td>
+          </tr>
+        `;
+        atualizarCards([]);
+        return;
+      }
+
+      if (!usuarioAtual) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <strong>Faça login para acessar o banco</strong>
+                Use um usuário criado no Supabase Auth para carregar, importar e editar os registros.
+              </div>
+            </td>
+          </tr>
+        `;
+        atualizarCards([]);
+        return;
+      }
+
+      if (carregando) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <strong>Carregando registros...</strong>
+                Buscando dados no Supabase.
+              </div>
+            </td>
+          </tr>
+        `;
+        atualizarCards([]);
+        return;
+      }
+
       if (!dados.length) {
         tbody.innerHTML = `
           <tr>
             <td colspan="6">
               <div class="empty-state">
-                <strong>Nenhuma planilha importada ainda</strong>
+                <strong>Nenhum registro no Supabase</strong>
                 Clique em “Importar planilha” e selecione um arquivo XLSX, XLS, CSV, TSV ou TXT.
               </div>
             </td>
@@ -892,9 +1203,9 @@
             <td class="obs">${obs}</td>
             <td>
               <div class="row-actions">
-                <button class="small-btn" onclick="editarLinha(${row.id})">Editar</button>
-                <button class="small-btn" onclick="copiarLinha(${row.id})">Copiar linha</button>
-                <button class="small-btn" onclick="copiarTitulo(${row.id})">Copiar título</button>
+                <button class="small-btn" onclick="editarLinha(${jsString(row.id)})">Editar</button>
+                <button class="small-btn" onclick="copiarLinha(${jsString(row.id)})">Copiar linha</button>
+                <button class="small-btn" onclick="copiarTitulo(${jsString(row.id)})">Copiar título</button>
               </div>
             </td>
           </tr>
@@ -985,9 +1296,9 @@
       setTimeout(() => document.getElementById('editTitulo').focus(), 50);
     }
 
-    function salvarEdicao(event) {
+    async function salvarEdicao(event) {
       event.preventDefault();
-      if (!editandoId) return;
+      if (!editandoId || !exigirLogin()) return;
 
       const index = dados.findIndex(item => item.id === editandoId);
       if (index === -1) return;
@@ -998,19 +1309,38 @@
         return;
       }
 
-      dados[index] = {
-        ...dados[index],
+      const registroAtualizado = {
         titulo: document.getElementById('editTitulo').value.trim(),
         qtd,
-        temRca: document.getElementById('editTemRca').value,
+        tem_rca: document.getElementById('editTemRca').value,
         numero: document.getElementById('editNumero').value.trim() || '-',
-        observacao: document.getElementById('editObservacao').value.trim()
+        observacao: document.getElementById('editObservacao').value.trim(),
+        updated_at: new Date().toISOString()
       };
 
-      salvarBase();
+      const { error } = await supabaseClient
+        .from(TABELA_RCA)
+        .update(registroAtualizado)
+        .eq('id', editandoId);
+
+      if (error) {
+        console.error(error);
+        mostrarToast('Erro ao salvar no Supabase.');
+        return;
+      }
+
+      dados[index] = {
+        ...dados[index],
+        titulo: registroAtualizado.titulo,
+        qtd: registroAtualizado.qtd,
+        temRca: registroAtualizado.tem_rca,
+        numero: registroAtualizado.numero,
+        observacao: registroAtualizado.observacao
+      };
+
       fecharModal();
       renderizar();
-      mostrarToast('Edição salva!');
+      mostrarToast('Edição salva no banco!');
     }
 
     function fecharModal() {
@@ -1022,34 +1352,32 @@
       if (event.target.id === 'editModal') fecharModal();
     }
 
-    function resetarAlteracoes() {
-      if (!baseOriginal.length) {
-        mostrarToast('Nenhuma base importada.');
-        return;
-      }
-      const confirmar = confirm('Deseja descartar edições e voltar para a planilha importada originalmente?');
-      if (!confirmar) return;
-      dados = JSON.parse(JSON.stringify(baseOriginal));
-      salvarBase();
-      limparFiltros(false);
-      renderizar();
-      mostrarToast('Alterações resetadas!');
-    }
-
-    function limparBase() {
+    async function limparBase() {
+      if (!exigirLogin()) return;
       if (!dados.length) {
         mostrarToast('Base já está vazia.');
         return;
       }
-      const confirmar = confirm('Deseja remover a planilha importada e todas as edições salvas?');
+      const confirmar = confirm('Deseja remover todos os registros da tabela rca_registros no Supabase?');
       if (!confirmar) return;
+
+      const { error } = await supabaseClient
+        .from(TABELA_RCA)
+        .delete()
+        .not('id', 'is', null);
+
+      if (error) {
+        console.error(error);
+        mostrarToast('Erro ao limpar base no Supabase.');
+        return;
+      }
+
       dados = [];
       baseOriginal = [];
-      localStorage.removeItem(STORAGE_DADOS);
-      localStorage.removeItem(STORAGE_ORIGINAL);
+      linhasAtuais = [];
       limparFiltros(false);
       renderizar();
-      mostrarToast('Base removida!');
+      mostrarToast('Base removida do Supabase!');
     }
 
     function exportarCSV() {
@@ -1077,9 +1405,12 @@
 
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape') fecharModal();
+      if (event.key === 'Enter' && event.target && ['authEmail', 'authPassword'].includes(event.target.id)) {
+        entrarSupabase();
+      }
     });
 
-    renderizar();
+    inicializarApp();
   </script>
 </body>
 </html>
