@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consulta Rápida - Importar Planilha / RCA</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #e5e7eb;
+      --brand: #1d4ed8;
+      --brand-soft: #dbeafe;
+      --ok: #047857;
+      --ok-soft: #d1fae5;
+      --warn: #b45309;
+      --warn-soft: #fef3c7;
+      --danger: #b91c1c;
+      --danger-soft: #fee2e2;
+      --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 260px);
+      color: var(--text);
+    }
+
+    .page {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 28px 22px 42px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(24px, 3vw, 34px);
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button, select, input, textarea { font: inherit; }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: #bfdbfe;
+      background: #f8fbff;
+    }
+
+    .btn.primary {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+
+    .btn.danger {
+      color: var(--danger);
+      border-color: #fecaca;
+      background: #fff;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(229,231,235,0.9);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .card .value {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .import-box {
+      margin: 0 0 16px;
+      padding: 16px;
+      border: 1px dashed #93c5fd;
+      background: rgba(255,255,255,0.72);
+      border-radius: 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(16, 24, 40, 0.05);
+    }
+
+    .import-box strong { display: block; margin-bottom: 4px; }
+    .import-box span { color: var(--muted); font-size: 14px; line-height: 1.4; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 170px 180px 160px;
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .search-wrap { position: relative; }
+
+    .search-wrap input {
+      width: 100%;
+      padding: 12px 14px 12px 40px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      outline: none;
+      background: #f9fafb;
+    }
+
+    .search-wrap input:focus, select:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 4px #dbeafe;
+      background: #fff;
+    }
+
+    .search-icon {
+      position: absolute;
+      top: 50%;
+      left: 14px;
+      transform: translateY(-50%);
+      color: var(--muted);
+    }
+
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: #f9fafb;
+      color: var(--text);
+      outline: none;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 330px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1080px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 14px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      color: #334155;
+      z-index: 10;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    tr:hover td { background: #f8fbff; }
+
+    .titulo {
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 620px;
+    }
+
+    .qtd {
+      font-size: 22px;
+      font-weight: 800;
+      text-align: center;
+      min-width: 72px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.sim { background: var(--ok-soft); color: var(--ok); }
+    .badge.nao { background: var(--danger-soft); color: var(--danger); }
+    .badge.numero { background: var(--brand-soft); color: var(--brand); }
+    .badge.vazio { background: #f1f5f9; color: #64748b; }
+
+    .obs {
+      color: #344054;
+      line-height: 1.45;
+      max-width: 520px;
+      white-space: pre-line;
+    }
+
+    .obs.empty {
+      color: #98a2b3;
+      font-style: italic;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .small-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 7px 9px;
+      cursor: pointer;
+      color: #344054;
+      font-size: 12px;
+    }
+
+    .small-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .empty-state {
+      padding: 34px 22px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .empty-state strong {
+      display: block;
+      color: var(--text);
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .footer-status {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      background: #fff;
+    }
+
+    mark {
+      background: #fef08a;
+      color: inherit;
+      padding: 0 2px;
+      border-radius: 4px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 900;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal {
+      width: min(860px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+      border: 1px solid var(--line);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 140px 160px 1fr;
+      gap: 12px;
+    }
+
+    .field { display: grid; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      color: #475467;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      background: #f9fafb;
+    }
+
+    .field textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 4px #dbeafe;
+      background: #fff;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+      position: sticky;
+      bottom: 0;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #111827;
+      color: #fff;
+      padding: 12px 14px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 980px) {
+      header { flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .cards { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .filters { grid-template-columns: 1fr; position: static; }
+      .table-wrap { max-height: none; }
+      .import-box { align-items: flex-start; flex-direction: column; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+    }
+
+    @media (max-width: 620px) {
+      .page { padding: 20px 12px 30px; }
+      .cards { grid-template-columns: 1fr; }
+      .card { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <h1>Consulta rápida de recorrências / RCA</h1>
+        <p class="subtitle">Importe uma planilha e consulte rapidamente por título, número, RCA ou observação.</p>
+      </div>
+      <div class="actions">
+        <input id="arquivoPlanilha" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden onchange="importarArquivo(event)" />
+        <button class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Importar planilha</button>
+        <button class="btn" onclick="limparFiltros()">Limpar filtros</button>
+        <button class="btn" onclick="resetarAlteracoes()">Resetar alterações</button>
+        <button class="btn" onclick="exportarCSV()">Exportar resultado</button>
+        <button class="btn danger" onclick="limparBase()">Limpar base</button>
+      </div>
+    </header>
+
+    <section class="import-box">
+      <div>
+        <strong>Formato esperado da planilha</strong>
+        <span>Use as colunas: <b>Titulo</b>, <b>Qtd</b>, <b>Tem RCA?</b>, <b>N°</b> e <b>Observação</b>. Também aceito nomes parecidos, como “Título”, “Quantidade”, “Número” e “Obs”.</span>
+      </div>
+      <button class="btn primary" onclick="document.getElementById('arquivoPlanilha').click()">Selecionar arquivo</button>
+    </section>
+
+    <section class="cards" aria-label="Resumo">
+      <div class="card"><div class="label">Títulos cadastrados</div><div class="value" id="cardTitulos">0</div></div>
+      <div class="card"><div class="label">Qtd. total</div><div class="value" id="cardQtd">0</div></div>
+      <div class="card"><div class="label">Com RCA</div><div class="value" id="cardComRca">0</div></div>
+      <div class="card"><div class="label">Sem RCA</div><div class="value" id="cardSemRca">0</div></div>
+      <div class="card"><div class="label">Sem observação</div><div class="value" id="cardSemObs">0</div></div>
+    </section>
+
+    <main class="panel">
+      <div class="filters">
+        <div class="search-wrap">
+          <span class="search-icon">🔎</span>
+          <input id="busca" type="search" placeholder="Buscar por cliente, alerta, número, SAP, lock, link..." oninput="renderizar()" autofocus />
+        </div>
+        <select id="filtroRca" onchange="renderizar()">
+          <option value="todos">Todos RCA</option>
+          <option value="Sim">Somente com RCA</option>
+          <option value="Não">Somente sem RCA</option>
+        </select>
+        <select id="filtroObs" onchange="renderizar()">
+          <option value="todos">Todas observações</option>
+          <option value="com">Com observação</option>
+          <option value="sem">Sem observação</option>
+        </select>
+        <select id="ordenacao" onchange="renderizar()">
+          <option value="qtd-desc">Qtd. maior primeiro</option>
+          <option value="qtd-asc">Qtd. menor primeiro</option>
+          <option value="titulo-asc">Título A-Z</option>
+          <option value="titulo-desc">Título Z-A</option>
+          <option value="rca-desc">RCA primeiro</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="setOrdenacao('titulo-asc')">Título</th>
+              <th onclick="toggleQtdSort()">Qtd.</th>
+              <th onclick="setOrdenacao('rca-desc')">Tem RCA?</th>
+              <th>N°</th>
+              <th>Observação</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="footer-status">
+        <span id="resultadoInfo">0 resultado(s)</span>
+        <span>As alterações ficam salvas neste navegador até você limpar a base.</span>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="editModal" onclick="fecharModalFora(event)">
+    <section class="modal" aria-modal="true" role="dialog" aria-labelledby="editModalTitle">
+      <div class="modal-header">
+        <h2 id="editModalTitle">Editar registro</h2>
+        <button class="small-btn" type="button" onclick="fecharModal()">Fechar</button>
+      </div>
+      <form id="editForm" onsubmit="salvarEdicao(event)">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field">
+              <label for="editQtd">Qtd.</label>
+              <input id="editQtd" type="number" min="0" step="1" required />
+            </div>
+            <div class="field">
+              <label for="editTemRca">Tem RCA?</label>
+              <select id="editTemRca" required>
+                <option value="Sim">Sim</option>
+                <option value="Não">Não</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="editNumero">N°</label>
+              <input id="editNumero" type="text" placeholder="Ex.: 2208897 ou -" />
+            </div>
+            <div class="field full">
+              <label for="editTitulo">Título</label>
+              <input id="editTitulo" type="text" required />
+            </div>
+            <div class="field full">
+              <label for="editObservacao">Observação</label>
+              <textarea id="editObservacao" placeholder="Informe a observação, status ou próximo passo"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" type="button" onclick="fecharModal()">Cancelar</button>
+          <button class="btn primary" type="submit">Salvar edição</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">Copiado!</div>
+
+  <script>
+    const STORAGE_DADOS = 'consulta_recorrencias_rca_dados_importados_v2';
+    const STORAGE_ORIGINAL = 'consulta_recorrencias_rca_base_original_v2';
+
+    let dados = carregarStorage(STORAGE_DADOS, []);
+    let baseOriginal = carregarStorage(STORAGE_ORIGINAL, []);
+    let editandoId = null;
+    let linhasAtuais = [...dados];
+
+    function carregarStorage(chave, fallback) {
+      try {
+        const salvo = localStorage.getItem(chave);
+        if (!salvo) return fallback;
+        const parsed = JSON.parse(salvo);
+        return Array.isArray(parsed) ? parsed : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function salvarBase() {
+      localStorage.setItem(STORAGE_DADOS, JSON.stringify(dados));
+      localStorage.setItem(STORAGE_ORIGINAL, JSON.stringify(baseOriginal));
+    }
+
+    function normalizar(texto) {
+      return String(texto || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    }
+
+    function chaveLimpa(texto) {
+      return normalizar(fixMojibake(texto)).replace(/[^a-z0-9]/g, '');
+    }
+
+    function fixMojibake(texto) {
+      texto = String(texto ?? '');
+      const trocas = {
+        'Ã¡':'á','Ã ':'à','Ã¢':'â','Ã£':'ã','Ã¤':'ä',
+        'Ã©':'é','Ãª':'ê','Ã¨':'è','Ã«':'ë',
+        'Ã­':'í','Ã¬':'ì','Ã®':'î','Ã¯':'ï',
+        'Ã³':'ó','Ã²':'ò','Ã´':'ô','Ãµ':'õ','Ã¶':'ö',
+        'Ãº':'ú','Ã¹':'ù','Ã»':'û','Ã¼':'ü',
+        'Ã§':'ç','Ã‡':'Ç','Ãƒ':'Ã','Â°':'°','Âº':'º'
+      };
+      Object.keys(trocas).forEach(k => texto = texto.replaceAll(k, trocas[k]));
+      return texto;
+    }
+
+    function escaparHTML(texto) {
+      return String(texto ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeRegex(texto) {
+      return String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function destacar(texto, termo) {
+      const safe = escaparHTML(texto);
+      if (!termo.trim()) return safe;
+      const partes = termo.trim().split(/\s+/).filter(Boolean).map(escapeRegex);
+      if (!partes.length) return safe;
+      const regex = new RegExp(`(${partes.join('|')})`, 'gi');
+      return safe.replace(regex, '<mark>$1</mark>');
+    }
+
+    function temObservacao(row) {
+      return !!row.observacao && row.observacao.trim().length > 0;
+    }
+
+    function detectarDelimitador(texto) {
+      const primeiraLinha = texto.split(/\r?\n/).find(l => l.trim()) || '';
+      const opcoes = ['\t', ';', ','];
+      return opcoes
+        .map(del => ({ del, qtd: (primeiraLinha.match(new RegExp(del === '\t' ? '\\t' : escapeRegex(del), 'g')) || []).length }))
+        .sort((a, b) => b.qtd - a.qtd)[0].del;
+    }
+
+    function parseDelimitado(texto, delimitador) {
+      const linhas = [];
+      let linha = [];
+      let campo = '';
+      let emAspas = false;
+
+      for (let i = 0; i < texto.length; i++) {
+        const char = texto[i];
+        const prox = texto[i + 1];
+
+        if (char === '"') {
+          if (emAspas && prox === '"') {
+            campo += '"';
+            i++;
+          } else {
+            emAspas = !emAspas;
+          }
+        } else if (char === delimitador && !emAspas) {
+          linha.push(campo);
+          campo = '';
+        } else if ((char === '\n' || char === '\r') && !emAspas) {
+          if (char === '\r' && prox === '\n') i++;
+          linha.push(campo);
+          if (linha.some(c => String(c).trim() !== '')) linhas.push(linha);
+          linha = [];
+          campo = '';
+        } else {
+          campo += char;
+        }
+      }
+
+      linha.push(campo);
+      if (linha.some(c => String(c).trim() !== '')) linhas.push(linha);
+      return linhas;
+    }
+
+    function tabelaParaObjetos(tabela) {
+      if (!tabela.length) return [];
+      const cabecalhos = tabela[0].map(h => String(h ?? '').trim());
+      return tabela.slice(1).map(linha => {
+        const obj = {};
+        cabecalhos.forEach((h, idx) => obj[h] = linha[idx] ?? '');
+        return obj;
+      });
+    }
+
+    function buscarCampo(obj, aliases) {
+      const mapa = {};
+      Object.keys(obj).forEach(k => mapa[chaveLimpa(k)] = obj[k]);
+      for (const alias of aliases) {
+        const key = chaveLimpa(alias);
+        if (Object.prototype.hasOwnProperty.call(mapa, key)) return mapa[key];
+      }
+      return '';
+    }
+
+    function parseQtd(valor) {
+      const texto = String(valor ?? '').trim();
+      if (!texto) return 0;
+      const limpo = texto.replace(/[^0-9,.-]/g, '').replace(',', '.');
+      const numero = Number(limpo);
+      return Number.isFinite(numero) ? Math.round(numero) : 0;
+    }
+
+    function parseRca(valor, numero) {
+      const texto = normalizar(valor).trim();
+      if (!texto && numero && numero !== '-') return 'Sim';
+      if (['sim', 's', 'yes', 'y', 'true', '1'].includes(texto)) return 'Sim';
+      return 'Não';
+    }
+
+    function padronizarDados(objetos) {
+      const aliases = {
+        titulo: ['titulo', 'título', 'title', 'alerta', 'descricao', 'descrição'],
+        qtd: ['qtd', 'quantidade', 'qtde', 'count', 'total'],
+        temRca: ['tem rca?', 'tem rca', 'rca'],
+        numero: ['n°', 'nº', 'n', 'numero', 'número', 'num', 'chamado', 'ticket', 'n rca', 'numero rca'],
+        observacao: ['observação', 'observacao', 'obs', 'comentario', 'comentário', 'detalhe', 'detalhes']
+      };
+
+      return objetos.map((obj, index) => {
+        const primeiraColuna = Object.keys(obj)[0] ? obj[Object.keys(obj)[0]] : '';
+        const numero = String(buscarCampo(obj, aliases.numero) || '-').trim() || '-';
+        const titulo = fixMojibake(String(buscarCampo(obj, aliases.titulo) || primeiraColuna || '').trim());
+        const observacao = fixMojibake(String(buscarCampo(obj, aliases.observacao) || '').trim());
+        const qtd = parseQtd(buscarCampo(obj, aliases.qtd));
+        const temRca = parseRca(buscarCampo(obj, aliases.temRca), numero);
+
+        return {
+          id: index + 1,
+          titulo,
+          qtd,
+          temRca,
+          numero: fixMojibake(numero),
+          observacao
+        };
+      }).filter(row => row.titulo || row.qtd || row.numero !== '-' || row.observacao);
+    }
+
+    async function importarArquivo(event) {
+      const file = event.target.files[0];
+      event.target.value = '';
+      if (!file) return;
+
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      try {
+        let objetos = [];
+
+        if (['xlsx', 'xls'].includes(ext)) {
+          if (!window.XLSX) {
+            alert('Para importar XLSX/XLS, esta página precisa carregar a biblioteca de leitura de Excel. Se estiver sem internet, salve a planilha como CSV e importe novamente.');
+            return;
+          }
+          const buffer = await file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const primeiraAba = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[primeiraAba];
+          objetos = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        } else {
+          const texto = await file.text();
+          const delimitador = detectarDelimitador(texto);
+          objetos = tabelaParaObjetos(parseDelimitado(texto, delimitador));
+        }
+
+        const importados = padronizarDados(objetos);
+        if (!importados.length) {
+          alert('Não encontrei linhas válidas na planilha. Confira se ela tem cabeçalho e dados preenchidos.');
+          return;
+        }
+
+        dados = importados;
+        baseOriginal = JSON.parse(JSON.stringify(importados));
+        salvarBase();
+        limparFiltros(false);
+        renderizar();
+        mostrarToast(`${importados.length} registro(s) importado(s)!`);
+      } catch (erro) {
+        console.error(erro);
+        alert('Não consegui importar a planilha. Verifique se o arquivo está aberto/corrompido ou tente salvar como CSV.');
+      }
+    }
+
+    function obterFiltrados() {
+      const termo = document.getElementById('busca').value.trim();
+      const termoNorm = normalizar(termo);
+      const rca = document.getElementById('filtroRca').value;
+      const obs = document.getElementById('filtroObs').value;
+      const ordenacao = document.getElementById('ordenacao').value;
+
+      let lista = dados.filter(row => {
+        const textoBusca = normalizar(`${row.titulo} ${row.qtd} ${row.temRca} ${row.numero} ${row.observacao}`);
+        const bateBusca = !termoNorm || textoBusca.includes(termoNorm);
+        const bateRca = rca === 'todos' || row.temRca === rca;
+        const bateObs = obs === 'todos' || (obs === 'com' ? temObservacao(row) : !temObservacao(row));
+        return bateBusca && bateRca && bateObs;
+      });
+
+      lista.sort((a, b) => {
+        switch (ordenacao) {
+          case 'qtd-asc': return a.qtd - b.qtd;
+          case 'titulo-asc': return a.titulo.localeCompare(b.titulo, 'pt-BR');
+          case 'titulo-desc': return b.titulo.localeCompare(a.titulo, 'pt-BR');
+          case 'rca-desc': return b.temRca.localeCompare(a.temRca, 'pt-BR') || b.qtd - a.qtd;
+          case 'qtd-desc':
+          default: return b.qtd - a.qtd;
+        }
+      });
+
+      return lista;
+    }
+
+    function renderizar() {
+      const termo = document.getElementById('busca').value.trim();
+      linhasAtuais = obterFiltrados();
+      const tbody = document.getElementById('tbody');
+
+      if (!dados.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <strong>Nenhuma planilha importada ainda</strong>
+                Clique em “Importar planilha” e selecione um arquivo XLSX, XLS, CSV, TSV ou TXT.
+              </div>
+            </td>
+          </tr>
+        `;
+        atualizarCards([]);
+        return;
+      }
+
+      if (!linhasAtuais.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <strong>Nenhum resultado encontrado</strong>
+                Tente limpar os filtros ou pesquisar por outro termo.
+              </div>
+            </td>
+          </tr>
+        `;
+        atualizarCards([]);
+        return;
+      }
+
+      tbody.innerHTML = linhasAtuais.map(row => {
+        const obs = temObservacao(row)
+          ? destacar(row.observacao, termo)
+          : '<span class="obs empty">Sem observação</span>';
+        const numeroBadge = row.numero && row.numero !== '-'
+          ? `<span class="badge numero">${escaparHTML(row.numero)}</span>`
+          : `<span class="badge vazio">-</span>`;
+        const rcaClass = row.temRca === 'Sim' ? 'sim' : 'nao';
+        return `
+          <tr>
+            <td class="titulo">${destacar(row.titulo, termo)}</td>
+            <td class="qtd">${row.qtd}</td>
+            <td><span class="badge ${rcaClass}">${row.temRca}</span></td>
+            <td>${numeroBadge}</td>
+            <td class="obs">${obs}</td>
+            <td>
+              <div class="row-actions">
+                <button class="small-btn" onclick="editarLinha(${row.id})">Editar</button>
+                <button class="small-btn" onclick="copiarLinha(${row.id})">Copiar linha</button>
+                <button class="small-btn" onclick="copiarTitulo(${row.id})">Copiar título</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      atualizarCards(linhasAtuais);
+    }
+
+    function atualizarCards(lista) {
+      const totalQtd = lista.reduce((soma, row) => soma + row.qtd, 0);
+      const comRca = lista.filter(row => row.temRca === 'Sim').length;
+      const semRca = lista.filter(row => row.temRca === 'Não').length;
+      const semObs = lista.filter(row => !temObservacao(row)).length;
+
+      document.getElementById('cardTitulos').textContent = lista.length;
+      document.getElementById('cardQtd').textContent = totalQtd;
+      document.getElementById('cardComRca').textContent = comRca;
+      document.getElementById('cardSemRca').textContent = semRca;
+      document.getElementById('cardSemObs').textContent = semObs;
+      document.getElementById('resultadoInfo').textContent = `${lista.length} resultado(s) encontrado(s) • soma Qtd.: ${totalQtd}`;
+    }
+
+    function copiarLinha(id) {
+      const row = dados.find(item => item.id === id);
+      if (!row) return;
+      const texto = `Título: ${row.titulo}\nQtd: ${row.qtd}\nTem RCA?: ${row.temRca}\nN°: ${row.numero}\nObservação: ${row.observacao || 'Sem observação'}`;
+      copiar(texto);
+    }
+
+    function copiarTitulo(id) {
+      const row = dados.find(item => item.id === id);
+      if (!row) return;
+      copiar(row.titulo);
+    }
+
+    async function copiar(texto) {
+      try {
+        await navigator.clipboard.writeText(texto);
+      } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = texto;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      mostrarToast('Copiado!');
+    }
+
+    function mostrarToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    function limparFiltros(focar = true) {
+      document.getElementById('busca').value = '';
+      document.getElementById('filtroRca').value = 'todos';
+      document.getElementById('filtroObs').value = 'todos';
+      document.getElementById('ordenacao').value = 'qtd-desc';
+      renderizar();
+      if (focar) document.getElementById('busca').focus();
+    }
+
+    function setOrdenacao(valor) {
+      document.getElementById('ordenacao').value = valor;
+      renderizar();
+    }
+
+    function toggleQtdSort() {
+      const select = document.getElementById('ordenacao');
+      select.value = select.value === 'qtd-desc' ? 'qtd-asc' : 'qtd-desc';
+      renderizar();
+    }
+
+    function editarLinha(id) {
+      const row = dados.find(item => item.id === id);
+      if (!row) return;
+      editandoId = id;
+      document.getElementById('editQtd').value = row.qtd;
+      document.getElementById('editTemRca').value = row.temRca;
+      document.getElementById('editNumero').value = row.numero || '-';
+      document.getElementById('editTitulo').value = row.titulo;
+      document.getElementById('editObservacao').value = row.observacao || '';
+      document.getElementById('editModal').classList.add('show');
+      setTimeout(() => document.getElementById('editTitulo').focus(), 50);
+    }
+
+    function salvarEdicao(event) {
+      event.preventDefault();
+      if (!editandoId) return;
+
+      const index = dados.findIndex(item => item.id === editandoId);
+      if (index === -1) return;
+
+      const qtd = Number(document.getElementById('editQtd').value);
+      if (Number.isNaN(qtd) || qtd < 0) {
+        mostrarToast('Informe uma quantidade válida.');
+        return;
+      }
+
+      dados[index] = {
+        ...dados[index],
+        titulo: document.getElementById('editTitulo').value.trim(),
+        qtd,
+        temRca: document.getElementById('editTemRca').value,
+        numero: document.getElementById('editNumero').value.trim() || '-',
+        observacao: document.getElementById('editObservacao').value.trim()
+      };
+
+      salvarBase();
+      fecharModal();
+      renderizar();
+      mostrarToast('Edição salva!');
+    }
+
+    function fecharModal() {
+      editandoId = null;
+      document.getElementById('editModal').classList.remove('show');
+    }
+
+    function fecharModalFora(event) {
+      if (event.target.id === 'editModal') fecharModal();
+    }
+
+    function resetarAlteracoes() {
+      if (!baseOriginal.length) {
+        mostrarToast('Nenhuma base importada.');
+        return;
+      }
+      const confirmar = confirm('Deseja descartar edições e voltar para a planilha importada originalmente?');
+      if (!confirmar) return;
+      dados = JSON.parse(JSON.stringify(baseOriginal));
+      salvarBase();
+      limparFiltros(false);
+      renderizar();
+      mostrarToast('Alterações resetadas!');
+    }
+
+    function limparBase() {
+      if (!dados.length) {
+        mostrarToast('Base já está vazia.');
+        return;
+      }
+      const confirmar = confirm('Deseja remover a planilha importada e todas as edições salvas?');
+      if (!confirmar) return;
+      dados = [];
+      baseOriginal = [];
+      localStorage.removeItem(STORAGE_DADOS);
+      localStorage.removeItem(STORAGE_ORIGINAL);
+      limparFiltros(false);
+      renderizar();
+      mostrarToast('Base removida!');
+    }
+
+    function exportarCSV() {
+      if (!linhasAtuais.length) {
+        mostrarToast('Nenhum dado para exportar.');
+        return;
+      }
+      const cabecalho = ['Titulo', 'Qtd', 'Tem RCA?', 'N°', 'Observação'];
+      const linhas = linhasAtuais.map(row => [row.titulo, row.qtd, row.temRca, row.numero, row.observacao]);
+      const csv = [cabecalho, ...linhas]
+        .map(linha => linha.map(campo => `"${String(campo ?? '').replace(/"/g, '""')}"`).join(';'))
+        .join('\n');
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'consulta_recorrencias_filtrada.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      mostrarToast('CSV exportado!');
+    }
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') fecharModal();
+    });
+
+    renderizar();
+  </script>
+</body>
+</html>
